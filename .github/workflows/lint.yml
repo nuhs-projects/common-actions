@@ -1,0 +1,14 @@
+name: Lint the workflows here
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: actionlint
+        uses: raven-actions/actionlint@v2

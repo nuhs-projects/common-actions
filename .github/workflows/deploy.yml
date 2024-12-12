@@ -1,0 +1,164 @@
+name: Build dev image and push to ECR
+on:
+  workflow_call:
+    inputs:
+      ecr_repository
+        description: ECR repository on AWS Dev where your docker images are stored, e.g. chatbot/medivoice
+        required: true
+        type: string
+      iam_role:
+        description: IAM role for this action to use, in order to cache builds to AWS ECR.
+        required: false
+        default: arn:aws:iam::189606967604:role/russell-gpt-github-actions
+        type: string
+      aws_region:
+        description: AWS region where the ECR repository is in
+        required: false
+        default: ap-southeast-1
+        type: string
+      build_context:
+        description: Override the default build context, e.g. if your Dockerfile is in a subdirectory.
+        required: false
+        default: .
+        type: string
+      target:
+        description: Name of the stage to build in the Dockerfile.
+        required: false
+        default: deployment
+        type: string
+      k8s_cluster_name:
+        description: Name of the K8S cluster to deploy on
+        required: false
+        default: dev
+        type: string
+      k8s_namespace:
+        description: Namespace to deploy in
+        required: true
+        type: string
+      k8s_yaml:
+        description: Path to K8S yaml file for deployment
+        required: true
+        type: string
+      k8s_deployment_name:
+        description: Name of the K8S deployment
+        required: true
+        type: string
+
+permissions:
+  contents: write # Required to create and push the `deployment` branch
+  id-token: write # Required for requesting the JWT for AWS login
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3
+
+      - name: Checkout repo
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Configure aws credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ inputs.iam_role }}
+          aws-region: ${{ inputs.aws_region }}
+          role-session-name: GitHub_to_AWS_via_FederatedOIDC
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2
+
+      - name: Get short commit hash
+        id: commit
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Get image tag
+        id: image
+        env:
+          # We can't re-reference environment variables defined here
+          TAG: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr_repository }}:${{ steps.commit.outputs.sha_short }}
+          TAG_LATEST: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr_repository }}:latest
+        run: |
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "tag_latest=$TAG_LATEST" >> $GITHUB_OUTPUT
+
+          echo "# Image Tag" >> $GITHUB_STEP_SUMMARY
+          echo "\`$TAG\`" >> $GITHUB_STEP_SUMMARY
+
+      # File mutations prior will be ignored, as we use the git commit as build context
+      - name: Build, tag, and push docker image to Amazon ECR
+        id: build
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v6
+        with:
+          push: true
+          target: ${{ inputs.target }}
+          platforms: linux/amd64
+          cache-to: mode=max,image-manifest=true,oci-mediatypes=true,type=registry,ref=${{env.REGISTRY}}/${{ inputs.ecr_repository }}:cache-deploy
+          cache-from: type=registry,ref=${{env.REGISTRY}}/${{ inputs.ecr_repository }}:cache-deploy
+          provenance: false
+          tags: |
+            ${{ steps.image.outputs.tag }}
+            ${{ steps.image.outputs.tag_latest }}
+
+      - name: Update kube config
+        run: |
+          aws eks update-kubeconfig --name ${{ inputs.k8s_cluster_name }} --region ${{ inputs.aws_region }}
+
+      - name: Setup kompose
+        run: |
+          curl -L https://github.com/kubernetes/kompose/releases/download/v1.34.0/kompose-linux-amd64 -o kompose
+          chmod +x kompose
+          sudo mv ./kompose /usr/local/bin/kompose
+
+      - name: Generate K8S configs
+        run: ./scripts/generate_k8s.sh
+
+      - name: Create origin/deployment branch if it didn't exist, then pull it
+        run: |
+          if ! git ls-remote --exit-code --heads origin refs/heads/deployment; then
+            git checkout --orphan deployment
+            git config --global user.email "actions@github.com"
+            git config --global user.name "Github Actions"
+            git commit --message 'Initial commit' --allow-empty
+            git push -u origin deployment
+          fi
+          git fetch
+          git switch deployment
+          git pull
+
+      - name: Copy deployment yamls to /tmp/deployment
+        run: |
+          mkdir -p /tmp/deployment
+          cp deployment/base/base.yaml k8s-generated/* /tmp/deployment
+          git rm -rf .
+          git clean -fxd
+          cp -r /tmp/deployment .
+
+      - name: Update image name in dev.yaml for deployment
+        run: |
+          yq -i 'select(.kind == "Deployment" and .metadata.name == "${{ env.DEPLOYMENT_NAME }}").spec.template.spec.containers[0].image = "${{ steps.image.outputs.tag }}"' deployment/dev.yaml
+
+      - name: Validate dev K8S configs
+        run: |
+          kubectl apply -f "deployment/dev.yaml" --dry-run=server
+
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@8621497c8c39c72f3e2a999a26b4ca1b5058a842 # v5
+        with:
+          commit_message: "Deploying commit ${{ github.sha }} from branch '${{ github.ref_name }}'"
+
+      - name: Deploy dev.yaml to EKS
+        run: |
+          kubectl -v=9 apply -f deployment/dev.yaml
+
+      - name: Print deployed URL
+        run: |
+          kubectl wait --for=jsonpath='{.status.loadBalancer.ingress[0].hostname}' ingress/${{ env.DEPLOYMENT_NAME }} -n ${{ env.K8S_NAMESPACE }}
+          echo "# Deployed URL" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          link=$(kubectl get ingress/${{ env.DEPLOYMENT_NAME }} -n ${{ env.K8S_NAMESPACE }} -o=jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          echo "[Link](http://$link)" >> $GITHUB_STEP_SUMMARY
