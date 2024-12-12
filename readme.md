@@ -22,6 +22,10 @@ jobs:
       working_directory: backend
 ```
 
-Our Github Free plan [doesn't support] organization-level secrets and variables.
+## Limitations
+
+- Our Github Free plan [doesn't support] organization-level secrets and variables.
+- Workflow files cannot [be in folders].
 
 [doesn't support]: https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/store-information-in-variables#creating-configuration-variables-for-an-organization
+[be in folders]: https://github.com/orgs/community/discussions/10773
