@@ -14,14 +14,22 @@ permissions:
 
 jobs:
   lint:
-    uses: nuhs-projects/common-actions/.github/workflows/python.yml@main
+    uses: nuhs-projects/common-actions/.github/workflows/python-lint.yml@main
     with:
       working_directory: backend
+
+  test:
+    uses: nuhs-projects/common-actions/.github/workflows/build-and-push.yml@main
+    with:
+      ecr_repository: chatbot/russell-gpt-web
+      target: test
 ```
 
 ## Notes
 
-- Naming convention: `${language}-${action-name}`. For actions applicable to all languages, omit `${language}`.
+- Tests are run by building the `test` stage of a Dockerfile, as shown above.
+- Naming convention: `${language}-${workflow-name}`.
+  - For actions applicable to all languages, omit `${language}`.
 - Our Github Free plan [doesn't support] organization-level secrets and variables in private repositories.
 - Called workflows only see the caller workflow repository's variables and secrets.
 - Workflow files cannot [be in folders].

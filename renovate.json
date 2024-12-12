@@ -1,0 +1,4 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["nuhs-projects/renovate-config:exceptMajor"]
+}

@@ -1,0 +1,92 @@
+name: Build image
+on:
+  workflow_call:
+    inputs:
+      ecr_repository:
+        description: ECR repository on AWS Dev where your docker images are stored, e.g. chatbot/medivoice
+        required: true
+        type: string
+      iam_role:
+        description: IAM role for this action to use, in order to cache builds to AWS ECR.
+        required: false
+        default: arn:aws:iam::189606967604:role/russell-gpt-github-actions
+        type: string
+      aws_region:
+        description: AWS region where the ECR repository is in
+        required: false
+        default: ap-southeast-1
+        type: string
+      build_context:
+        description: Override the default build context, e.g. if your Dockerfile is in a subdirectory.
+        required: false
+        default: .
+        type: string
+      target:
+        description: Name of the stage to build if you are using a multi-stage Dockerfile..
+        required: false
+        type: string
+      push:
+        description: Whether to push the image to ECR
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read # Required to create and push the `deployment` branch
+  id-token: write # Required for requesting the JWT for AWS login
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3
+
+      - name: Checkout repo
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Configure aws credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ inputs.iam_role }}
+          aws-region: ${{ inputs.aws_region }}
+          role-session-name: GitHub_to_AWS_via_FederatedOIDC
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2
+
+      - name: Get short commit hash
+        id: commit
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Get image tag
+        id: image
+        env:
+          # We can't re-reference environment variables defined here
+          TAG: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr_repository }}:${{ steps.commit.outputs.sha_short }}
+          TAG_LATEST: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr_repository }}:latest
+        run: |
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "tag_latest=$TAG_LATEST" >> $GITHUB_OUTPUT
+
+          echo "# Image Tag" >> $GITHUB_STEP_SUMMARY
+          echo "\`$TAG\`" >> $GITHUB_STEP_SUMMARY
+
+      # File mutations prior will be ignored, as we use the git commit as build context
+      - name: Build, tag, and cache docker image to Amazon ECR (push=${{ inputs.push }})
+        id: build
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v6
+        with:
+          push: ${{ inputs.push }}
+          target: ${{ inputs.target }}
+          platforms: linux/amd64
+          cache-to: mode=max,image-manifest=true,oci-mediatypes=true,type=registry,ref=${{env.REGISTRY}}/${{ inputs.ecr_repository }}:${{ inputs.target || 'cache' }}
+          cache-from: type=registry,ref=${{env.REGISTRY}}/${{ inputs.ecr_repository }}:${{ inputs.target || 'cache' }}
+          provenance: false
+          tags: |
+            ${{ steps.image.outputs.tag }}
+            ${{ steps.image.outputs.tag_latest }}
