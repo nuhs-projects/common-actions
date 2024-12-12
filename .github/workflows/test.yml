@@ -1,0 +1,91 @@
+name: Build test stage of Dockerfile
+on:
+  workflow_call:
+    inputs:
+      ecr_repository:
+        description: ECR repository on AWS Dev where your docker images are stored, e.g. chatbot/medivoice
+        required: true
+        type: string
+      build_context:
+        description: Override the default build context, e.g. if your Dockerfile is in a subdirectory.
+        required: false
+        default: .
+        type: string
+      target:
+        description: Name of the stage to build in the Dockerfile.
+        required: false
+        default: test
+        type: string
+      
+
+permissions:
+  contents: read
+  id-token: write # This is required for requesting the JWT for AWS login
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Secret Scanning
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified
+
+      - name: Format
+        uses: astral-sh/ruff-action@d0a0e814ec17e92d33be7d24dd922b479f1bcd38 # v1
+        with:
+          args: "format --check"
+          src: "./backend"
+
+      - name: Lint
+        uses: astral-sh/ruff-action@d0a0e814ec17e92d33be7d24dd922b479f1bcd38 # v1
+        with:
+          src: "./backend"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@a7e15805d229f8677c5ddf08590a8cb972658599 # v3
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Check lockfile
+        run: uv lock --locked
+      
+  test:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+
+      # Allow multi-platform builds
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3
+
+      - name: Configure aws credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ vars.IAM_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHub_to_AWS_via_FederatedOIDC
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2
+
+      # Options: https://github.com/docker/build-push-action
+      - name: Build '${{ inputs.target }}' stage
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v6
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        with:
+          push: false
+          context: "{{defaultContext}}:${{ inputs.build_context }}"
+          target: test
+          platforms: linux/amd64
+          # Use ECR as cache instead, as GHA has problems caching multistage images
+          # https://github.com/docker/build-push-action/issues/829
+          cache-to: mode=max,image-manifest=true,oci-mediatypes=true,type=registry,ref=${{env.REGISTRY}}/${{env.REPOSITORY}}:cache
+          cache-from: type=registry,ref=${{env.REGISTRY}}/${{env.REPOSITORY}}:cache
+          # https://stackoverflow.com/questions/75811044/github-action-docker-build-push-actionv4-to-ecr-returns-untagged-images
+          provenance: false
