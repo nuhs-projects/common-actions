@@ -1,0 +1,34 @@
+name: Lint (Python)
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Format
+        uses: astral-sh/ruff-action@f2e32211077f40bfeab40e16285216924ebea4cb # v2
+        with:
+          args: "format --check"
+
+      - name: Fetch ruff.toml from common-actions repo
+        uses: actions/checkout@v4
+        with:
+          repository: nuhs-projects/common-actions
+          path: repo-name-${{ github.run_id }}-${{ github.run_number }}
+          sparse-checkout: ruff.toml
+          sparse-checkout-cone-mode: false
+
+      # Workaround as actions/checkout doesn't let us clone outside of $GITHUB_WORKSPACE
+      # https://github.com/actions/checkout/issues/197
+      - run: mv repo-name-${{ github.run_id }}-${{ github.run_number }} /tmp
+
+      - name: Lint
+        uses: astral-sh/ruff-action@f2e32211077f40bfeab40e16285216924ebea4cb # v2
+        with:
+          args: "--config /tmp/ruff.toml "
