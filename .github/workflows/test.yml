@@ -6,6 +6,16 @@ on:
         description: ECR repository on AWS Dev where your docker images are stored, e.g. chatbot/medivoice
         required: true
         type: string
+      iam_role:
+        description: IAM role for this action to use, in order to cache builds to AWS ECR.
+        required: false
+        default: arn:aws:iam::189606967604:role/russell-gpt-github-actions
+        type: string
+      aws_region:
+        description: AWS region where the ECR repository is in
+        required: false
+        default: ap-southeast-1
+        type: string
       build_context:
         description: Override the default build context, e.g. if your Dockerfile is in a subdirectory.
         required: false
@@ -26,8 +36,6 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-
       - name: Secret Scanning
         uses: trufflesecurity/trufflehog@main
         with:
@@ -65,8 +73,8 @@ jobs:
       - name: Configure aws credentials
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
-          role-to-assume: ${{ vars.IAM_ROLE }}
-          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ inputs.iam_role }}
+          aws-region: ${{ inputs.aws_region }}
           role-session-name: GitHub_to_AWS_via_FederatedOIDC
 
       - name: Login to Amazon ECR
@@ -85,7 +93,7 @@ jobs:
           platforms: linux/amd64
           # Use ECR as cache instead, as GHA has problems caching multistage images
           # https://github.com/docker/build-push-action/issues/829
-          cache-to: mode=max,image-manifest=true,oci-mediatypes=true,type=registry,ref=${{env.REGISTRY}}/${{env.REPOSITORY}}:cache
-          cache-from: type=registry,ref=${{env.REGISTRY}}/${{env.REPOSITORY}}:cache
+          cache-to: mode=max,image-manifest=true,oci-mediatypes=true,type=registry,ref=${{env.REGISTRY}}/${{ inputs.ecr_repository }}:cache
+          cache-from: type=registry,ref=${{env.REGISTRY}}/${{ inputs.ecr_repository }}:cache
           # https://stackoverflow.com/questions/75811044/github-action-docker-build-push-actionv4-to-ecr-returns-untagged-images
           provenance: false
