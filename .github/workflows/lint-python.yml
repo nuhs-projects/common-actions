@@ -31,4 +31,4 @@ jobs:
       - name: Lint
         uses: astral-sh/ruff-action@f2e32211077f40bfeab40e16285216924ebea4cb # v2
         with:
-          args: "--config /tmp/ruff.toml "
+          args: "--config /tmp/ruff.toml check"
