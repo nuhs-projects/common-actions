@@ -26,7 +26,18 @@ jobs:
 
       # Workaround as actions/checkout doesn't let us clone outside of $GITHUB_WORKSPACE
       # https://github.com/actions/checkout/issues/197
-      - run: mv repo-name-${{ github.run_id }}-${{ github.run_number }}/$( basename `git rev-parse --show-toplevel` )/ruff.toml /tmp
+      - run: mv repo-name-${{ github.run_id }}-${{ github.run_number }} /tmp
+
+      - run: find . /tmp
+      - run: find .
+      - name: Dump GitHub context
+        env:
+          GITHUB_CONTEXT: ${{ toJson(github) }}
+        run: echo "$GITHUB_CONTEXT"
+      - name: Dump job context
+        env:
+          JOB_CONTEXT: ${{ toJson(job) }}
+        run: echo "$JOB_CONTEXT"
 
       - name: Lint
         uses: astral-sh/ruff-action@f2e32211077f40bfeab40e16285216924ebea4cb # v2
