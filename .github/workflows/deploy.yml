@@ -2,7 +2,7 @@ name: Build dev image and push to ECR
 on:
   workflow_call:
     inputs:
-      ecr_repository
+      ecr_repository:
         description: ECR repository on AWS Dev where your docker images are stored, e.g. chatbot/medivoice
         required: true
         type: string
@@ -50,7 +50,7 @@ permissions:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: linux-latest
     steps:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3
