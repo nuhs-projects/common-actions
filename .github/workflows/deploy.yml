@@ -81,7 +81,7 @@ jobs:
 
       - name: Generate K8S configs and store in /tmp/${{ env.K8S_GENERATED_DIR }}
         run: |
-          mkdir -p /tmp/${{ env.K8S_GENERATED_DIR }}/base
+          mkdir -p /tmp/${{ env.K8S_GENERATED_DIR }}
 
           cd "${{ inputs.k8s_deployment_folder}}"
 
@@ -97,6 +97,9 @@ jobs:
               kubectl kustomize "overlays/$i" >> "$output"
               echo "Created $output"
           done
+
+          # Having base.yaml in the deployment branch is useful
+          mv base/base.yaml /tmp/${{ env.K8S_GENERATED_DIR}}
 
       - name: Create origin/${{ inputs.deployment_branch_name}} branch if it didn't exist, then switch to it and pull
         run: |
@@ -115,7 +118,7 @@ jobs:
         run: |
           git rm -rf .
           git clean -fxd
-          cp /tmp/${{ env.K8S_GENERATED_DIR }}/base/base.yaml /tmp/${{ env.K8S_GENERATED_DIR }}/* .
+          cp /tmp/${{ env.K8S_GENERATED_DIR }}/* .
 
       - name: Substitute image tags in the dev K8S yaml (dev.yaml)
         run: |
