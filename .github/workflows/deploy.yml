@@ -89,6 +89,8 @@ jobs:
           # Used by kustomize overlays subsequently
           kompose -f compose.yml convert --stdout >> "base/base.yaml"
 
+          ls
+
           # Generate for dev, staging and prod
           envs=("dev" "staging" "production")
           for i in "${envs[@]}"; do
