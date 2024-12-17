@@ -124,8 +124,11 @@ jobs:
       - name: Substitute image tags in the dev K8S yaml (dev.yaml)
         run: |
           while read -r line; do
+            IFS=, read -r deployment_kv tag_kv <<<"$line"
             # shellcheck disable=SC2034
-            IFS=, read -r deployment tag <<<"$line"
+            IFS='=', read -r _key deployment <<<"$deployment_kv"
+            # shellcheck disable=SC2034
+            IFS='=', read -r _key tag <<<"$tag_kv"
             yq -i 'select(.kind == "Deployment" and .metadata.name == env(deployment)).spec.template.spec.containers[0].image = env(tag)' dev.yaml
           done <<<'${{ inputs.image_tags }}'
 
