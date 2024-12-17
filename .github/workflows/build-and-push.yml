@@ -30,6 +30,10 @@ on:
         required: false
         default: false
         type: boolean
+    outputs:
+      image_tag:
+        description: Tag of the image in the Dev AWS ECR, if push=True
+        value: ${{ jobs.deploy.outputs.image_tag }}
 
 permissions:
   contents: read # Required to create and push the `deployment` branch
@@ -38,6 +42,8 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.image.outputs.tag }}
     steps:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3
@@ -59,7 +65,8 @@ jobs:
       - name: Get short commit hash
         id: commit
         run: |
-          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "timestamp=$(git log -1 --format="%at")" >> "$GITHUB_OUTPUT"
 
       - name: Get image tag
         id: image
@@ -68,11 +75,11 @@ jobs:
           TAG: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr_repository }}:${{ steps.commit.outputs.sha_short }}
           TAG_LATEST: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr_repository }}:latest
         run: |
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "tag_latest=$TAG_LATEST" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "tag_latest=$TAG_LATEST" >> "$GITHUB_OUTPUT"
 
-          echo "# Image Tag" >> $GITHUB_STEP_SUMMARY
-          echo "\`$TAG\`" >> $GITHUB_STEP_SUMMARY
+          echo "# Image Tag" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`$TAG\`" >> "$GITHUB_STEP_SUMMARY"
 
       # File mutations prior will be ignored, as we use the git commit as build context
       - name: Build, tag, and cache docker image to Amazon ECR (push=${{ inputs.push }})
@@ -82,6 +89,9 @@ jobs:
         uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v6
         with:
           push: ${{ inputs.push }}
+          build-args: |
+            COMMIT_SHA=${{steps.commit.outputs.sha_short}}
+            COMMIT_TIMESTAMP=${{steps.commit.outputs.timestamp}}
           target: ${{ inputs.target }}
           platforms: linux/amd64
           cache-to: mode=max,image-manifest=true,oci-mediatypes=true,type=registry,ref=${{env.REGISTRY}}/${{ inputs.ecr_repository }}:${{ inputs.target || 'cache' }}

@@ -1,13 +1,22 @@
-name: Build dev image and push to ECR
+name: Deploy Dev AWS ECR image to Dev K8S cluster
 on:
   workflow_call:
     inputs:
-      ecr_repository:
-        description: ECR repository on AWS Dev where your docker images are stored, e.g. chatbot/medivoice
+      image_tags:
+        description: |-
+          List of image tags to substitute in the generated K8S yaml file, for the AWS dev environment. These are newline-separated `deployment=DEPLOYMENT,tag=TAG`.
+
+          Example:
+
+          ```yaml
+          image_tags: |-
+            deployment=frontend,tag=189606967604.dkr.ecr.ap-southeast-1.amazonaws.com/chatbot/frontend:123abc
+            deployment=backend,tag=189606967604.dkr.ecr.ap-southeast-1.amazonaws.com/chatbot/backend:456def
+          ```
         required: true
         type: string
       iam_role:
-        description: IAM role for this action to use, in order to cache builds to AWS ECR.
+        description: IAM role for this action to authenticate to AWS
         required: false
         default: arn:aws:iam::189606967604:role/russell-gpt-github-actions
         type: string
@@ -16,33 +25,30 @@ on:
         required: false
         default: ap-southeast-1
         type: string
-      build_context:
-        description: Override the default build context, e.g. if your Dockerfile is in a subdirectory.
-        required: false
-        default: .
-        type: string
-      target:
-        description: Name of the stage to build in the Dockerfile.
-        required: false
-        default: deployment
-        type: string
       k8s_cluster_name:
-        description: Name of the K8S cluster to deploy on
-        required: false
-        default: dev
-        type: string
-      k8s_namespace:
-        description: Namespace to deploy in
-        required: true
-        type: string
-      k8s_yaml:
-        description: Path to K8S yaml file for deployment
+        description: Name of the Dev AWSK8S cluster to deploy on
         required: true
         type: string
       k8s_deployment_name:
         description: Name of the K8S deployment
         required: true
         type: string
+      k8s_deployment_folder:
+        description: Folder containing the compose.yml and Kustomize overlay folders
+        required: false
+        type: string
+        default: deployment
+      deployment_branch_name:
+        description: Name of the branch used for deployment artifacts
+        required: false
+        type: string
+        default: deployment
+
+env:
+  # Unique directory name to checkout the repo to
+  REPO_DIR: repo-name-${{ github.run_id }}-${{ github.run_number }}
+  # Name of folder containing generated kubernetes yamls
+  K8S_GENERATED_DIR: k8s-generated
 
 permissions:
   contents: write # Required to create and push the `deployment` branch
@@ -50,13 +56,18 @@ permissions:
 
 jobs:
   deploy:
-    runs-on: linux-latest
+    runs-on: ubuntu-latest
     steps:
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3
-
-      - name: Checkout repo
+      - name: Checkout ${{ inputs.k8s_deployment_folder }}/
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          path: ${{ env.REPO_DIR }}
+          sparse-checkout: ${{ inputs.k8s_deployment_folder }}
+          sparse-checkout-cone-mode: false
+
+      # Workaround as actions/checkout doesn't let us clone outside of $GITHUB_WORKSPACE
+      # https://github.com/actions/checkout/issues/197
+      - run: mv "$${{env.REPO_DIR}}" /tmp
 
       - name: Configure aws credentials
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
@@ -69,41 +80,6 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2
 
-      - name: Get short commit hash
-        id: commit
-        run: |
-          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-
-      - name: Get image tag
-        id: image
-        env:
-          # We can't re-reference environment variables defined here
-          TAG: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr_repository }}:${{ steps.commit.outputs.sha_short }}
-          TAG_LATEST: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr_repository }}:latest
-        run: |
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "tag_latest=$TAG_LATEST" >> $GITHUB_OUTPUT
-
-          echo "# Image Tag" >> $GITHUB_STEP_SUMMARY
-          echo "\`$TAG\`" >> $GITHUB_STEP_SUMMARY
-
-      # File mutations prior will be ignored, as we use the git commit as build context
-      - name: Build, tag, and push docker image to Amazon ECR
-        id: build
-        env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v6
-        with:
-          push: true
-          target: ${{ inputs.target }}
-          platforms: linux/amd64
-          cache-to: mode=max,image-manifest=true,oci-mediatypes=true,type=registry,ref=${{env.REGISTRY}}/${{ inputs.ecr_repository }}:cache-deploy
-          cache-from: type=registry,ref=${{env.REGISTRY}}/${{ inputs.ecr_repository }}:cache-deploy
-          provenance: false
-          tags: |
-            ${{ steps.image.outputs.tag }}
-            ${{ steps.image.outputs.tag_latest }}
-
       - name: Update kube config
         run: |
           aws eks update-kubeconfig --name ${{ inputs.k8s_cluster_name }} --region ${{ inputs.aws_region }}
@@ -114,37 +90,55 @@ jobs:
           chmod +x kompose
           sudo mv ./kompose /usr/local/bin/kompose
 
-      - name: Generate K8S configs
-        run: ./scripts/generate_k8s.sh
-
-      - name: Create origin/deployment branch if it didn't exist, then pull it
+      - name: Generate K8S configs and store in /tmp/${{ env.K8S_GENERATED_DIR }}
+        working-directory: /tmp/${{ env.REPO_DIR }}
         run: |
-          if ! git ls-remote --exit-code --heads origin refs/heads/deployment; then
-            git checkout --orphan deployment
+          mkdir -p ${{ env.K8S_GENERATED_DIR }}
+
+          kompose_output="base/base.yaml"
+
+          cd "/tmp/${{ inputs.k8s_deployment_folder}}"
+
+          # Generate base k8s yamls all in one file
+          kompose -f compose.yml convert --stdout >> "$kompose_output"
+
+          # Generate for dev, staging and prod
+          envs=("dev" "staging" "production")
+          for i in "${envs[@]}"; do
+              if ! [[ -f "overlays/$i" ]]; then break; fi
+              kubectl kustomize "overlays/$i" >> "../${{ env.K8S_GENERATED_DIR }}/$i.yaml"
+              echo "Created ${{ env.K8S_GENERATED_DIR }}/$i.yaml"
+          done
+
+      - name: Create origin/${{ inputs.deployment_branch_name}} branch if it didn't exist, then switch to it and pull
+        run: |
+          if ! git ls-remote --exit-code --heads origin refs/heads/${{ inputs.deployment_branch_name}}; then
+            git checkout --orphan ${{ inputs.deployment_branch_name }}
             git config --global user.email "actions@github.com"
             git config --global user.name "Github Actions"
             git commit --message 'Initial commit' --allow-empty
-            git push -u origin deployment
+            git push -u origin ${{ inputs.deployment_branch_name }}
           fi
           git fetch
-          git switch deployment
+          git switch ${{ inputs.deployment_branch_name }}
           git pull
 
-      - name: Copy deployment yamls to /tmp/deployment
+      - name: Wipe working directory and copy back deployment yamls in /tmp/${{ env.K8S_GENERATED_DIR }} to it
         run: |
-          mkdir -p /tmp/deployment
-          cp deployment/base/base.yaml k8s-generated/* /tmp/deployment
           git rm -rf .
           git clean -fxd
-          cp -r /tmp/deployment .
+          cp /tmp/${{ env.K8S_GENERATED_DIR }}/base/base.yaml /tmp/${{ env.K8S_GENERATED_DIR }}/* .
 
-      - name: Update image name in dev.yaml for deployment
+      - name: Substitute image tags in the dev K8S yaml (dev.yaml)
         run: |
-          yq -i 'select(.kind == "Deployment" and .metadata.name == "${{ env.DEPLOYMENT_NAME }}").spec.template.spec.containers[0].image = "${{ steps.image.outputs.tag }}"' deployment/dev.yaml
+          while read -r line; do
+            IFS=, read -r deployment tag <<<"$line"
+            yq -i "select(.kind == Deployment and .metadata.name == $deployment).spec.template.spec.containers[0].image = $tag" dev.yaml
+          done <<<'${{ inputs.image_tags }}'
 
-      - name: Validate dev K8S configs
+      - name: Validate dev K8S config
         run: |
-          kubectl apply -f "deployment/dev.yaml" --dry-run=server
+          kubectl apply -f "dev.yaml" --dry-run=server
 
       - name: Commit changes
         uses: stefanzweifel/git-auto-commit-action@8621497c8c39c72f3e2a999a26b4ca1b5058a842 # v5
@@ -157,8 +151,8 @@ jobs:
 
       - name: Print deployed URL
         run: |
-          kubectl wait --for=jsonpath='{.status.loadBalancer.ingress[0].hostname}' ingress/${{ env.DEPLOYMENT_NAME }} -n ${{ env.K8S_NAMESPACE }}
-          echo "# Deployed URL" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          link=$(kubectl get ingress/${{ env.DEPLOYMENT_NAME }} -n ${{ env.K8S_NAMESPACE }} -o=jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-          echo "[Link](http://$link)" >> $GITHUB_STEP_SUMMARY
+          kubectl wait --for=jsonpath='{.status.loadBalancer.ingress[0].hostname}' "ingress/${{ inputs.k8s_deployment_name }}" -n "${{ env.K8S_NAMESPACE }}"
+          echo "# Deployed URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          link=$(kubectl get "ingress/${{ env.DEPLOYMENT_NAME }}" -n "${{ env.K8S_NAMESPACE }}" -o=jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          echo "[Link](http://$link)" >> "$GITHUB_STEP_SUMMARY"
