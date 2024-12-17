@@ -129,9 +129,7 @@ jobs:
             IFS='=', read -r _key deployment <<<"$deployment_kv"
             # shellcheck disable=SC2034
             IFS='=', read -r _key tag <<<"$tag_kv"
-            echo "d=$deployment"
-            echo "t=$tag"
-            yq -i 'select(.kind == "Deployment" and .metadata.name == env(deployment)).spec.template.spec.containers[0].image = env(tag)' dev.yaml
+            deployment="$deployment" tag="$tag" yq -i 'select(.kind == "Deployment" and .metadata.name == env(deployment)).spec.template.spec.containers[0].image = env(tag)' dev.yaml
           done <<<'${{ inputs.image_tags }}'
 
       - name: Validate dev K8S config
