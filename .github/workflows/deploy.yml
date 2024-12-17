@@ -148,7 +148,7 @@ jobs:
           name=$(yq 'select(.kind == "Ingress").metadata.name' dev.yaml)
           namespace=$(yq 'select(.kind == "Ingress").metadata.namespace' dev.yaml)
           echo "name=$name" >> "$GITHUB_OUTPUT"
-          echo "namespace=$namespace" >> "GITHUB_OUTPUT"
+          echo "namespace=$namespace" >> "$GITHUB_OUTPUT"
 
       - name: Print deployed URL
         run: |
