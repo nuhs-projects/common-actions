@@ -145,8 +145,10 @@ jobs:
       - name: Get ingress name and namespace
         id: ingress
         run: |
-          echo "name=$(yq -i 'select(.kind == Ingress).metadata.name' dev.yaml)" >> "$GITHUB_OUTPUT"
-          echo "namespace=$(yq -i 'select(.kind == Ingress).metadata.namespace' dev.yaml)" >> "GITHUB_OUTPUT"
+          name=$(yq -i 'select(.kind == Ingress).metadata.name' dev.yaml)
+          namespace=$(yq -i 'select(.kind == Ingress).metadata.namespace' dev.yaml)
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "namespace=$namespace" >> "GITHUB_OUTPUT"
 
       - name: Print deployed URL
         run: |
