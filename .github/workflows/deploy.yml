@@ -63,7 +63,7 @@ jobs:
 
       # Workaround as actions/checkout doesn't let us clone outside of $GITHUB_WORKSPACE
       # https://github.com/actions/checkout/issues/197
-      - run: mv "$${{env.REPO_DIR}}" /tmp
+      - run: mv "${{env.REPO_DIR}}" /tmp
 
       - name: Configure aws credentials
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2

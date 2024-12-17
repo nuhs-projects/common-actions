@@ -23,7 +23,7 @@ jobs:
       working_directory: backend
 
   test:
-    uses: nuhs-projects/common-actions/.github/workflows/build-and-push.yml@main
+    uses: nuhs-projects/common-actions/.github/workflows/build.yml@main
     with:
       ecr_repository: namespace/repo
       target: test
@@ -46,7 +46,7 @@ permissions:
 
 jobs:
   build:
-    uses: nuhs-projects/common-actions/.github/workflows/build-and-push.yml@main
+    uses: nuhs-projects/common-actions/.github/workflows/build.yml@main
     with:
       ecr_repository: namespace/repo
       target: deployment
