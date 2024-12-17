@@ -89,12 +89,11 @@ jobs:
           # Used by kustomize overlays subsequently
           kompose -f compose.yml convert --stdout >> "base/base.yaml"
 
-          ls
-
-          # Generate for dev, staging and prod
+          # Generate for dev, staging and production
           envs=("dev" "staging" "production")
           for i in "${envs[@]}"; do
-              if ! [[ -f "overlays/$i" ]]; then break; fi
+              # Skip environment if its directory does not exist
+              if ! [[ -d "overlays/$i" ]]; then break; fi
               output="/tmp/${{ env.K8S_GENERATED_DIR }}/$i.yaml"
               kubectl kustomize "overlays/$i" >> "$output"
               echo "Created $output"
