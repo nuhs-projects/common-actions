@@ -41,10 +41,8 @@ on:
         default: deployment
 
 env:
-  # Unique directory name to checkout the repo to
-  REPO_DIR: repo-name-${{ github.run_id }}-${{ github.run_number }}
   # Name of folder containing generated kubernetes yamls
-  K8S_GENERATED_DIR: k8s-generated
+  K8S_GENERATED_DIR: ${{ github.run_id }}-${{ github.run_number }}-k8s-generated
 
 permissions:
   contents: write # Required to create and push the `deployment` branch
@@ -57,13 +55,8 @@ jobs:
       - name: Checkout ${{ inputs.k8s_deployment_folder }}/
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
-          path: ${{ env.REPO_DIR }}
           sparse-checkout: ${{ inputs.k8s_deployment_folder }}
           sparse-checkout-cone-mode: false
-
-      # Workaround as actions/checkout doesn't let us clone outside of $GITHUB_WORKSPACE
-      # https://github.com/actions/checkout/issues/197
-      - run: mv "${{env.REPO_DIR}}" /tmp
 
       - name: Configure aws credentials
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
@@ -82,28 +75,26 @@ jobs:
 
       - name: Setup kompose
         run: |
-          curl -L https://github.com/kubernetes/kompose/releases/download/v1.34.0/kompose-linux-amd64 -o kompose
-          chmod +x kompose
-          sudo mv ./kompose /usr/local/bin/kompose
+          curl -L https://github.com/kubernetes/kompose/releases/download/v1.34.0/kompose-linux-amd64 -o /tmp/kompose
+          chmod +x /tmp/kompose
+          sudo mv /tmp/kompose /usr/local/bin/kompose
 
       - name: Generate K8S configs and store in /tmp/${{ env.K8S_GENERATED_DIR }}
-        working-directory: /tmp/${{ env.REPO_DIR }}
         run: |
           mkdir -p ${{ env.K8S_GENERATED_DIR }}
 
-          kompose_output="base/base.yaml"
-
-          cd "/tmp/${{ env.REPO_DIR }}/${{ inputs.k8s_deployment_folder}}"
+          cd "${{ inputs.k8s_deployment_folder}}"
 
           # Generate base k8s yamls all in one file
-          kompose -f compose.yml convert --stdout >> "$kompose_output"
+          kompose -f compose.yml convert --stdout >> "/tmp/${{ env.K8S_GENERATED_DIR }}/base/base.yaml"
 
           # Generate for dev, staging and prod
           envs=("dev" "staging" "production")
           for i in "${envs[@]}"; do
               if ! [[ -f "overlays/$i" ]]; then break; fi
-              kubectl kustomize "overlays/$i" >> "../${{ env.K8S_GENERATED_DIR }}/$i.yaml"
-              echo "Created ${{ env.K8S_GENERATED_DIR }}/$i.yaml"
+              output="/tmp/${{ env.K8S_GENERATED_DIR }}/$i.yaml"
+              kubectl kustomize "overlays/$i" >> "$output"
+              echo "Created $output"
           done
 
       - name: Create origin/${{ inputs.deployment_branch_name}} branch if it didn't exist, then switch to it and pull
