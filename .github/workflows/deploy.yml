@@ -93,7 +93,7 @@ jobs:
 
           kompose_output="base/base.yaml"
 
-          cd "/tmp/${{ inputs.k8s_deployment_folder}}"
+          cd "/tmp/${{ env.REPO_DIR }}/${{ inputs.k8s_deployment_folder}}"
 
           # Generate base k8s yamls all in one file
           kompose -f compose.yml convert --stdout >> "$kompose_output"
