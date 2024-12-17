@@ -81,12 +81,13 @@ jobs:
 
       - name: Generate K8S configs and store in /tmp/${{ env.K8S_GENERATED_DIR }}
         run: |
-          mkdir -p ${{ env.K8S_GENERATED_DIR }}
+          mkdir -p /tmp/${{ env.K8S_GENERATED_DIR }}/base
 
           cd "${{ inputs.k8s_deployment_folder}}"
 
-          # Generate base k8s yamls all in one file
-          kompose -f compose.yml convert --stdout >> "/tmp/${{ env.K8S_GENERATED_DIR }}/base/base.yaml"
+          # Generate base k8s yamls all in one file, in the repo's deployment/base folder
+          # Used by kustomize overlays subsequently
+          kompose -f compose.yml convert --stdout >> "base/base.yaml"
 
           # Generate for dev, staging and prod
           envs=("dev" "staging" "production")
