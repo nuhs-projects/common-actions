@@ -56,11 +56,10 @@ jobs:
     uses: nuhs-projects/common-actions/.github/workflows/deploy.yml@main
     needs: build
     with:
-      image_tag: ${{ needs.build.outputs.image_tag }}
+      image_tags: |-
+        deployment=my-deployment,tag=${{ needs.build.outputs.image_tag }}
       iam_role: 12345
       k8s_cluster_name: dev
-      k8s_namespace: dev
-      k8s_yaml
 ```
 
 
