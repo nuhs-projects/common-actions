@@ -140,7 +140,7 @@ jobs:
 
       - name: Deploy dev.yaml to EKS
         run: |
-          kubectl -v=9 apply -f deployment/dev.yaml
+          kubectl -v=9 apply -f dev.yaml
 
       - name: Get ingress name and namespace
         id: ingress
