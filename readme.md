@@ -23,6 +23,7 @@ jobs:
       working_directory: backend
 
   test:
+    needs: lint
     uses: nuhs-projects/common-actions/.github/workflows/build.yml@main
     with:
       ecr_repository: namespace/repo
