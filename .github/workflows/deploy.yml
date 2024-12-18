@@ -141,19 +141,3 @@ jobs:
       - name: Deploy dev.yaml to EKS
         run: |
           kubectl -v=9 apply -f dev.yaml
-
-      - name: Get ingress name and namespace
-        id: ingress
-        run: |
-          name=$(yq 'select(.kind == "Ingress").metadata.name' dev.yaml)
-          namespace=$(yq 'select(.kind == "Ingress").metadata.namespace' dev.yaml)
-          echo "name=$name" >> "$GITHUB_OUTPUT"
-          echo "namespace=$namespace" >> "$GITHUB_OUTPUT"
-
-      - name: Print deployed URL
-        run: |
-          kubectl wait --for=jsonpath='{.status.loadBalancer.ingress[0].hostname}' "ingress/${{ steps.ingress.outputs.name }}" -n "${{ steps.ingress.outputs.namespace }}"
-          echo "# Deployed URL" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          link=$(kubectl get "ingress/${{ steps.ingress.outputs.name }}" -n "${{ steps.ingress.outputs.namespace }}" -o=jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-          echo "[Link](http://$link)" >> "$GITHUB_STEP_SUMMARY"
