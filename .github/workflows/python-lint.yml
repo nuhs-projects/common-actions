@@ -3,10 +3,15 @@ on:
   workflow_call:
     inputs:
       working-directory:
-        description: Directory where uv.lock is in. Leave blank for the root direcotry.
+        description: Directory where uv.lock is in. Leave blank for the root directory.
         default: "."
         required: false
         type: string
+      check-uv-lockfile:
+        description: Whether to check the uv lockfile.
+        default: true
+        required: false
+        type: boolean
 
 permissions:
   contents: read
@@ -27,7 +32,17 @@ jobs:
         with:
           args: "format --check"
 
+      - name: Check if ruff.toml exists in repo
+        id: ruff
+        run: |
+          echo "has_ruff=$( [[ -f ruff.toml ]] && echo true || echo false )" >> "$GITHUB_OUTPUT"
+
+      - name: Lint (using ruff.toml from the project)
+        if: fromJson(steps.ruff.outputs.has_ruff)
+        uses: astral-sh/ruff-action@f2e32211077f40bfeab40e16285216924ebea4cb # v2
+
       - name: Fetch ruff.toml from common-actions repo
+        if: fromJson(steps.ruff.outputs.has_ruff)
         uses: actions/checkout@v4
         with:
           repository: nuhs-projects/common-actions
@@ -38,14 +53,17 @@ jobs:
       # Workaround as actions/checkout doesn't let us clone outside of $GITHUB_WORKSPACE
       # https://github.com/actions/checkout/issues/197
       - run: mv repo-name-${{ github.run_id }}-${{ github.run_number }} /tmp
+        if: fromJson(steps.ruff.outputs.has_ruff)
 
-      - name: Lint
+      - name: Lint (using ruff.toml from common-actions)
+        if: fromJson(steps.ruff.outputs.has_ruff)
         uses: astral-sh/ruff-action@f2e32211077f40bfeab40e16285216924ebea4cb # v2
         with:
           args: "--config /tmp/repo-name-${{ github.run_id }}-${{ github.run_number }}/ruff.toml check"
 
   check-lockfile:
     runs-on: ubuntu-latest
+    if: inputs.check-uv-lockfile
     defaults:
       run:
         working-directory: ${{inputs.working-directory}}
