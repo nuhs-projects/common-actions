@@ -63,8 +63,23 @@ jobs:
       k8s_cluster_name: dev
 ```
 
+## `python-lint.yaml`
 
-## Notes for the `deploy.yml` action
+- Linting via Ruff, using the project's `ruff.toml` if it exists
+- Secret scanning via Trufflehog
+- Optionally, lints using the `ruff.toml` from this repo.
+- Optionally, checks the uv lockfile
+
+## `build.yml`
+
+Builds a Dockerfile (or a stage of it), caching via AWS ECR. Optionally, pushes the built image to ECR.
+
+Provides the following as build arguments:
+
+- `COMMIT_SHA`: Short SHA of the commit which triggered the action (e.g. `dcc3bcd`)
+- `COMMIT_TIMESTAMP`: Unix timestamp of the commit (e.g. `1734508790`)
+
+## `deploy.yml` action
 
 This action uses `kompose` to generate a base K8S yaml from a Docker `compose.yml` and then `kustomize` to generate environment-specific K8S yamls for specific environments.
 
