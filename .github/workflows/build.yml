@@ -8,18 +8,31 @@ on:
         type: string
       iam_role:
         description: IAM role for this action to use, in order to cache builds to AWS ECR.
-        required: false
-        default: arn:aws:iam::189606967604:role/russell-gpt-github-actions
+        required: true
         type: string
       aws_region:
         description: AWS region where the ECR repository is in
-        required: false
-        default: ap-southeast-1
+        required: true
         type: string
       build_context:
         description: Override the default build context, e.g. if your Dockerfile is in a subdirectory.
         required: false
         default: .
+        type: string
+      build_args:
+        description: |-
+          List of build-time variables, supplied as newline separated NAME=VALUE, e.g.
+
+          ```yaml
+          build-args: |
+            COMMIT_SHA=123456
+            COMMIT_TIMESTAMP=123456789
+          ```
+
+          These are accessible via the ARG instruction in the Dockerfile.
+
+          See https://github.com/docker/build-push-action?tab=readme-ov-file#inputs
+        required: false
         type: string
       target:
         description: Name of the stage to build if you are using a multi-stage Dockerfile..
@@ -33,23 +46,20 @@ on:
     outputs:
       image_tag:
         description: Tag of the image in the Dev AWS ECR, if push=True
-        value: ${{ jobs.deploy.outputs.image_tag }}
+        value: ${{ jobs.build.outputs.image_tag }}
 
 permissions:
   contents: read # Required to create and push the `deployment` branch
   id-token: write # Required for requesting the JWT for AWS login
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.image.outputs.tag }}
     steps:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3
-
-      - name: Checkout repo
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       - name: Configure aws credentials
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
@@ -64,17 +74,15 @@ jobs:
 
       - name: Get short commit hash
         id: commit
-        run: |
-          echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-          echo "timestamp=$(git log -1 --format="%at")" >> "$GITHUB_OUTPUT"
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Get image tag
         id: image
-        env:
-          # We can't re-reference environment variables defined here
-          TAG: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr_repository }}:${{ steps.commit.outputs.sha_short }}
-          TAG_LATEST: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr_repository }}:latest
         run: |
+          BASE_TAG=${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr_repository }}
+          TAG="$BASE_TAG:${{ steps.commit.outputs.sha_short }}"
+          TAG_LATEST="$BASE_TAG:latest"
+
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "tag_latest=$TAG_LATEST" >> "$GITHUB_OUTPUT"
 
@@ -89,9 +97,7 @@ jobs:
         uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v6
         with:
           push: ${{ inputs.push }}
-          build-args: |
-            COMMIT_SHA=${{steps.commit.outputs.sha_short}}
-            COMMIT_TIMESTAMP=${{steps.commit.outputs.timestamp}}
+          build-args: ${{ inputs.build_args }}
           target: ${{ inputs.target }}
           platforms: linux/amd64
           cache-to: mode=max,image-manifest=true,oci-mediatypes=true,type=registry,ref=${{env.REGISTRY}}/${{ inputs.ecr_repository }}:${{ inputs.target || 'cache' }}
