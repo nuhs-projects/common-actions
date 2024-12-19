@@ -50,6 +50,7 @@ on:
 env:
   # Name of temporary folder storing generated kubernetes yamls
   K8S_CONFIG_DIR: ${{ github.run_id }}-${{ github.run_number }}-k8s-generated
+  GH_TOKEN: ${{ github.token }} # Required for gh commands
 
 permissions:
   contents: write # Required to create and push the `deployment` branch
