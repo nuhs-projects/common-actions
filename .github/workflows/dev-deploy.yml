@@ -1,0 +1,53 @@
+name: Deploy K8S Configs to Dev AWS Cluster
+on:
+  workflow_call:
+    inputs:
+      deployment_branch_name:
+        description: Name of the branch containing dev.yaml.
+        required: false
+        type: string
+        default: deployment
+      iam_role:
+        description: IAM role for this action to assume to make AWS EKS calls
+        required: true
+        type: string
+      aws_region:
+        description: AWS region where the ECR repository is in
+        required: true
+        type: string
+      k8s_cluster_name:
+        description: Name of the Dev AWS K8S cluster to deploy on. Required if `deploy_dev=true`.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write # Required for requesting the JWT for AWS login
+
+jobs:
+  deploy-dev:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      with:
+        ref: ${{ inputs.deployment_branch_name }}
+
+    - name: Configure aws credentials
+      uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+      with:
+        role-to-assume: ${{ inputs.iam_role }}
+        aws-region: ${{ inputs.aws_region }}
+        role-session-name: GitHub_to_AWS_via_FederatedOIDC
+
+    - name: Update kubeconfig
+      run: |
+        aws eks update-kubeconfig --name ${{ inputs.k8s_cluster_name }} --region ${{ inputs.aws_region }}
+
+    - name: Validate dev.yaml against server (dry-run)
+      run: |
+        kubectl apply -f dev.yaml --dry-run=server
+
+    - name: Deploy dev.yaml to EKS
+      run: |
+        kubectl -v=9 apply -f dev.yaml
