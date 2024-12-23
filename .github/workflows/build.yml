@@ -14,7 +14,7 @@ on:
         description: AWS region where the ECR repository is in
         required: true
         type: string
-      build_context:
+      context:
         description: Override the default build context, e.g. if your Dockerfile is in a subdirectory.
         required: false
         default: .
@@ -99,6 +99,7 @@ jobs:
           push: ${{ inputs.push }}
           build-args: ${{ inputs.build_args }}
           target: ${{ inputs.target }}
+          context: ${{ inputs.context }}
           platforms: linux/amd64
           cache-to: mode=max,image-manifest=true,oci-mediatypes=true,type=registry,ref=${{env.REGISTRY}}/${{ inputs.ecr_repository }}:${{ inputs.target || 'cache' }}
           cache-from: type=registry,ref=${{env.REGISTRY}}/${{ inputs.ecr_repository }}:${{ inputs.target || 'cache' }}
