@@ -54,9 +54,9 @@ jobs:
 
   build:
     uses: nuhs-projects/common-actions/.github/workflows/build.yml@main
-    needs: ["lint", "get-commit-metadata"]
+    needs: get-commit-metadata
     with:
-      ecr_repository: chatbot/russell-gpt-web
+      ecr_repository: chatbot/russell-gpt-web # Change this
       target: deployment
       push: true
       iam_role: ${{ vars.IAM_ROLE }}
@@ -69,7 +69,7 @@ jobs:
     uses: nuhs-projects/common-actions/.github/workflows/generate-k8s.yml@v0.3
     needs: build
     with:
-      dev_deployment_tags: |
+      dev_deployment_tags: | # Change as necessary
         deployment=russell-gpt,tag=${{ needs.build.outputs.image_tag }}
 
   deploy:
