@@ -30,7 +30,7 @@ jobs:
       - name: Secret Scanning
         uses: trufflesecurity/trufflehog@main
         with:
-          extra_args: --only-verified
+          extra_args: --results=verified, unknown
 
       - name: Format
         uses: astral-sh/ruff-action@f2e32211077f40bfeab40e16285216924ebea4cb # v2
