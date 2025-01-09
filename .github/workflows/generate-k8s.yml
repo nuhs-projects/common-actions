@@ -76,7 +76,7 @@ jobs:
 
           # Generate base k8s yamls all in one file, in the repo's deployment/base folder
           # Used by kustomize overlays subsequently
-          kompose -f compose.yml convert --stdout >> "base/base.yaml"
+          find . -iregex './compose.y.?ml' -exec kompose -f {} convert --stdout \; >> "base/base.yaml"
 
           # Generate for dev, staging and production, skipping if the corresponding overlay directory does not exist
           envs=("dev" "staging" "production")
