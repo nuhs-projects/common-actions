@@ -8,7 +8,10 @@ on:
         required: false
         type: string
       check-standard-rules:
-        description: Whether to also run Ruff against the ruff.toml in common-actions.
+        description: |-
+          Whether to also run Ruff against the ruff.toml in the common-actions repository.
+          Defaults to true.
+          Note: If a ruff.toml exists in the repository, it will always be checked, regardless of this setting.
         default: true
         required: false
         type: boolean
