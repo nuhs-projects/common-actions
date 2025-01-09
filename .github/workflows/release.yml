@@ -21,6 +21,15 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
+      - name: Update README.md
+        run: |
+          sed -Ei 's/@v\S+/@${{ github.ref_name }}/g' readme.md
+
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@8621497c8c39c72f3e2a999a26b4ca1b5058a842 # v5
+        with:
+          commit_message: "Update workflows in readme.md to version ${{ github.ref_name }}"
+
       - name: Create release
         run: |
           gh release create ${{ github.ref_name }} --generate-notes
