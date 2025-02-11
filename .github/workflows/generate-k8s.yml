@@ -5,7 +5,11 @@ on:
       # K8S config generation settings
       dev_deployment_tags:
         description: |-
-          List of deployment image tags to substitute in the generated dev.yaml, for the AWS dev environment. These are supplied as newline-separated `deployment=DEPLOYMENT,tag=TAG`. You can also use the output of the build.yml workflow as input.
+          List of deployment image tags to substitute in the generated dev.yaml, for the AWS dev environment. These are supplied as newline-separated `deployment=DEPLOYMENT,tag=TAG`.
+
+          `deployment` must be the same as the name of the service in your compose.yml.
+
+          You can also use the output of the build.yml workflow as input (see the example in the README).
 
           Example:
 
