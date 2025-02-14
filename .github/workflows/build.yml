@@ -127,7 +127,7 @@ jobs:
             echo "# Image Tags"
             echo "\`${TAG}\`"
             echo "\`${TAG_LATEST}\`"
-            [[ -n "${TAG_EXTRA}" ]] && echo "\`${TAG_EXTRA}\`"
+            if [[ -n "${TAG_EXTRA}" ]]; then echo "\`${TAG_EXTRA}\`"; fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       # File mutations prior will be ignored, as we use the git commit as build context
