@@ -18,10 +18,10 @@ permissions:
 
 jobs:
   lint:
-    uses: nuhs-projects/common-actions/.github/workflows/python-lint.yml@v0.4
+    uses: nuhs-projects/common-actions/.github/workflows/python-lint.yml@v0.5
 
   test:
-    uses: nuhs-projects/common-actions/.github/workflows/build.yml@v0.4
+    uses: nuhs-projects/common-actions/.github/workflows/build.yml@v0.5
     needs: lint
     with:
       ecr_repository: namespace/repo # Replace
@@ -49,10 +49,10 @@ permissions:
 
 jobs:
   get-commit-metadata:
-    uses: nuhs-projects/common-actions/.github/workflows/commit-metadata.yml@v0.4
+    uses: nuhs-projects/common-actions/.github/workflows/commit-metadata.yml@v0.5
 
   build:
-    uses: nuhs-projects/common-actions/.github/workflows/build.yml@v0.4
+    uses: nuhs-projects/common-actions/.github/workflows/build.yml@v0.5
     needs: get-commit-metadata
     with:
       ecr_repository: chatbot/russell-gpt-web # Change this
@@ -65,14 +65,14 @@ jobs:
         COMMIT_TIMESTAMP=${{ needs.get-commit-metadata.outputs.timestamp }}
 
   generate-k8s:
-    uses: nuhs-projects/common-actions/.github/workflows/generate-k8s.yml@v0.4
+    uses: nuhs-projects/common-actions/.github/workflows/generate-k8s.yml@v0.5
     needs: build
     with:
       dev_deployment_tags: | # Change as necessary
         deployment=russell-gpt,tag=${{ needs.build.outputs.image_tag }}
 
   deploy:
-    uses: nuhs-projects/common-actions/.github/workflows/dev-deploy.yml@v0.4
+    uses: nuhs-projects/common-actions/.github/workflows/dev-deploy.yml@v0.5
     needs: generate-k8s
     with:
       iam_role: ${{ vars.IAM_ROLE }}
