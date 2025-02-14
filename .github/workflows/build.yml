@@ -64,9 +64,21 @@ on:
         required: false
         default: false
         type: boolean
+      tags:
+        description: |-
+          List of additional tags to apply to the image, supplied as newline separated values, e.g.
+
+          ```yaml
+          tags: |
+            latest
+            v1.0.0
+          ```
+        required: false
+        default: null
+        type: string
     outputs:
       image_tag:
-        description: Tag of the image in the Dev AWS ECR, if push=True
+        description: Image reference of the built Docker image. When push=true, this image will be available in the caller's AWS ECR repository. Example format - 123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:latest
         value: ${{ jobs.build.outputs.image_tag }}
 
 permissions:
@@ -129,3 +141,4 @@ jobs:
           tags: |
             ${{ steps.image.outputs.tag }}
             ${{ steps.image.outputs.tag_latest }}
+            ${{ inputs.tags || ''}}
