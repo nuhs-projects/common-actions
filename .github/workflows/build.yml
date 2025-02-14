@@ -24,7 +24,7 @@ on:
 
           For more information, see https://github.com/docker/build-push-action?tab=readme-ov-file#git-context
         required: false
-        default: '{{defaultContext}}'
+        default: "{{defaultContext}}"
         type: string
       ssh:
         description: |-
@@ -64,12 +64,12 @@ on:
         required: false
         default: false
         type: boolean
-      tags:
+      extra_tags:
         description: |-
           List of additional tags to apply to the image, supplied as newline separated values, e.g.
 
           ```yaml
-          tags: |
+          extra_tags: |
             latest
             v1.0.0
           ```
@@ -115,12 +115,20 @@ jobs:
           BASE_TAG=${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr_repository }}
           TAG="$BASE_TAG:${{ steps.commit.outputs.sha_short }}"
           TAG_LATEST="$BASE_TAG:latest"
+          TAG_EXTRA=$(printf "${{ inputs.extra_tags }}" | sed "s#^#$BASE_TAG:#")
 
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "tag_latest=$TAG_LATEST" >> "$GITHUB_OUTPUT"
+          {
+            echo "tag=$TAG"
+            echo "tag_latest=$TAG_LATEST"
+            echo "tag_extra=$TAG_EXTRA"
+          } >> "$GITHUB_OUTPUT"
 
-          echo "# Image Tag" >> "$GITHUB_STEP_SUMMARY"
-          echo "\`$TAG\`" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "# Image Tags"
+            echo "\`$TAG\`"
+            echo "\`$TAG_LATEST\`"
+            echo "\`$TAG_EXTRA\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # File mutations prior will be ignored, as we use the git commit as build context
       - name: Build, tag, and cache docker image to Amazon ECR (push=${{ inputs.push }})
@@ -141,4 +149,4 @@ jobs:
           tags: |
             ${{ steps.image.outputs.tag }}
             ${{ steps.image.outputs.tag_latest }}
-            ${{ inputs.tags || ''}}
+            ${{ steps.image.outputs.tag_extra }}
