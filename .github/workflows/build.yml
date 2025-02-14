@@ -30,6 +30,13 @@ on:
         description: |-
           List of SSH agent socket or keys to expose to the build.
           This is used to access private repositories.
+
+          ```yaml
+          ssh: |
+            default=$SSH_AUTH_SOCK
+          ```
+
+          For more information, see https://docs.docker.com/reference/cli/docker/buildx/build/#ssh
         required: false
         default: null
         type: string
