@@ -118,16 +118,16 @@ jobs:
           TAG_EXTRA=$(printf "${{ inputs.extra_tags }}" | sed "s#^#$BASE_TAG:#")
 
           {
-            echo "tag=$TAG"
-            echo "tag_latest=$TAG_LATEST"
-            echo "tag_extra=$TAG_EXTRA"
+            echo "tag=${TAG}"
+            echo "tag_latest=${TAG_LATEST}"
+            echo "tag_extra=${TAG_EXTRA}"
           } >> "$GITHUB_OUTPUT"
 
           {
             echo "# Image Tags"
-            echo "\`$TAG\`"
-            echo "\`$TAG_LATEST\`"
-            echo "\`$TAG_EXTRA\`"
+            echo "\`${TAG}\`"
+            echo "\`${TAG_LATEST}\`"
+            [[ -n "${TAG_EXTRA}" ]] && echo "\`${TAG_EXTRA}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       # File mutations prior will be ignored, as we use the git commit as build context
