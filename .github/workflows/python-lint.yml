@@ -39,10 +39,11 @@ jobs:
           extra_args: --results=verified,unknown
 
       - name: Format
-        uses: astral-sh/ruff-action@f2e32211077f40bfeab40e16285216924ebea4cb # v2
+        uses: astral-sh/ruff-action@v3.2.1
         with:
           args: "format --check"
           src: ${{ inputs.directory }}
+          version-file: ${{ inputs.directory }}/pyproject.toml
 
       - name: Check if ruff.toml exists in repo
         id: ruff
@@ -51,7 +52,10 @@ jobs:
 
       - name: Lint (using ruff.toml from the project)
         if: fromJson(steps.ruff.outputs.has_ruff)
-        uses: astral-sh/ruff-action@f2e32211077f40bfeab40e16285216924ebea4cb # v2
+        uses: astral-sh/ruff-action@v3.2.1
+        with:
+          src: ${{ inputs.directory }}
+          version-file: ${{ inputs.directory }}/pyproject.toml
 
       - name: Fetch ruff.toml from common-actions repo
         if: inputs.check-standard-rules
@@ -69,10 +73,11 @@ jobs:
 
       - name: Lint (using ruff.toml from common-actions)
         if: inputs.check-standard-rules
-        uses: astral-sh/ruff-action@f2e32211077f40bfeab40e16285216924ebea4cb # v2
+        uses: astral-sh/ruff-action@v3.2.1
         with:
           args: "--config /tmp/repo-name-${{ github.run_id }}-${{ github.run_number }}/ruff.toml check"
           src: ${{ inputs.directory }}
+          version-file: ${{ inputs.directory }}/pyproject.toml
 
   check-lockfile:
     runs-on: ubuntu-latest
