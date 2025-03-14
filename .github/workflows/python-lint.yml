@@ -1,4 +1,4 @@
-name: Lint and check uv lockfile (Python)
+name: Lint, format and check uv lockfile (Python)
 on:
   workflow_call:
     inputs:
@@ -11,7 +11,7 @@ on:
         description: |-
           Whether to also run Ruff against the ruff.toml in the common-actions repository.
           Defaults to true.
-          Note: If a ruff.toml exists in the repository, it will always be checked, regardless of this setting.
+          Note: If a ruff.toml exists it will always be checked regardless of this setting.
         default: true
         required: false
         type: boolean
@@ -33,17 +33,25 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4
+        with:
+          version: "latest"
+
+      - name: Check lockfile
+        if: inputs.check-uv-lockfile
+        run: uv lock --locked
+
       - name: Secret Scanning
         uses: trufflesecurity/trufflehog@main
         with:
           extra_args: --results=verified,unknown
 
+      - name: Install only dev dependencies
+        run: uv sync --only-dev
+
       - name: Format
-        uses: astral-sh/ruff-action@v3.2.1
-        with:
-          args: "format --check"
-          src: ${{ inputs.directory }}
-          version-file: ${{ inputs.directory }}/pyproject.toml
+        run: ruff format --check
 
       - name: Check if ruff.toml exists in repo
         id: ruff
@@ -52,10 +60,7 @@ jobs:
 
       - name: Lint (using ruff.toml from the project)
         if: fromJson(steps.ruff.outputs.has_ruff)
-        uses: astral-sh/ruff-action@v3.2.1
-        with:
-          src: ${{ inputs.directory }}
-          version-file: ${{ inputs.directory }}/pyproject.toml
+        run: ruff check
 
       - name: Fetch ruff.toml from common-actions repo
         if: inputs.check-standard-rules
@@ -73,25 +78,4 @@ jobs:
 
       - name: Lint (using ruff.toml from common-actions)
         if: inputs.check-standard-rules
-        uses: astral-sh/ruff-action@v3.2.1
-        with:
-          args: "--config /tmp/repo-name-${{ github.run_id }}-${{ github.run_number }}/ruff.toml check"
-          src: ${{ inputs.directory }}
-          version-file: ${{ inputs.directory }}/pyproject.toml
-
-  check-lockfile:
-    runs-on: ubuntu-latest
-    if: inputs.check-uv-lockfile
-    defaults:
-      run:
-        working-directory: ${{ inputs.directory }}
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4
-        with:
-          version: "latest"
-
-      - name: Check lockfile
-        run: uv lock --locked
+        run: ruff --config /tmp/repo-name-${{ github.run_id }}-${{ github.run_number }}/ruff.toml check

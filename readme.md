@@ -96,6 +96,8 @@ jobs:
 - Optionally, lints using the `ruff.toml` from this repo.
 - Optionally, checks the uv lockfile
 
+Note: This uses `ruff` from the project's dev dependencies.
+
 ## `build.yml`
 
 Builds a Dockerfile (or a stage of it), caching via AWS ECR. Optionally, pushes the built image to ECR.
@@ -139,6 +141,7 @@ Your repository needs to have a `deployment` folder in the root (name is customi
       resources:
         - ../../base
       ```
+
   - For an example of Kustomize overlays, see the [medivoice repo].
 
 ## `dev-deploy.yml`
