@@ -51,7 +51,7 @@ jobs:
         run: uv sync --only-dev
 
       - name: Format
-        run: ruff format --check
+        run: uv run ruff format --check
 
       - name: Check if ruff.toml exists in repo
         id: ruff
@@ -60,7 +60,7 @@ jobs:
 
       - name: Lint (using ruff.toml from the project)
         if: fromJson(steps.ruff.outputs.has_ruff)
-        run: ruff check
+        run: uv run ruff check
 
       - name: Fetch ruff.toml from common-actions repo
         if: inputs.check-standard-rules
@@ -78,4 +78,4 @@ jobs:
 
       - name: Lint (using ruff.toml from common-actions)
         if: inputs.check-standard-rules
-        run: ruff --config /tmp/repo-name-${{ github.run_id }}-${{ github.run_number }}/ruff.toml check
+        run: uv run ruff --config /tmp/repo-name-${{ github.run_id }}-${{ github.run_number }}/ruff.toml check
