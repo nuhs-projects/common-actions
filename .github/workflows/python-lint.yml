@@ -79,3 +79,6 @@ jobs:
       - name: Lint (using ruff.toml from common-actions)
         if: inputs.check-standard-rules
         run: uv run ruff --config /tmp/repo-name-${{ github.run_id }}-${{ github.run_number }}/ruff.toml check
+
+      - name: Static type check
+        run: uv run pyright
