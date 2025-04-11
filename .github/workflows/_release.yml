@@ -12,7 +12,7 @@ env:
 
 jobs:
   lint:
-    uses: ./.github/workflows/lint.yml
+    uses: ./.github/workflows/_lint.yml
 
   update-tags:
     runs-on: ubuntu-latest
