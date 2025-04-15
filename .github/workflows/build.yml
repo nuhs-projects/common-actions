@@ -26,20 +26,6 @@ on:
         required: false
         default: "{{defaultContext}}"
         type: string
-      ssh:
-        description: |-
-          List of SSH agent socket or keys to expose to the build.
-          This is used to access private repositories.
-
-          ```yaml
-          ssh: |
-            default=$SSH_AUTH_SOCK
-          ```
-
-          For more information, see https://docs.docker.com/reference/cli/docker/buildx/build/#ssh
-        required: false
-        default: null
-        type: string
       build_args:
         description: |-
           List of build-time variables, supplied as newline separated NAME=VALUE, e.g.
@@ -76,6 +62,12 @@ on:
         required: false
         default: null
         type: string
+    secrets:
+      SSH_PRIVATE_KEY:
+        required: false
+        description: |-
+          List of SSH private key(s) used to access private repositories.
+          See https://github.com/webfactory/ssh-agent/tree/v0.9.0/?tab=readme-ov-file#using-multiple-keys for more information.
     outputs:
       image_tag:
         description: Image reference of the built Docker image. When push=true, this image will be available in the caller's AWS ECR repository. Example format - 123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:latest
@@ -91,6 +83,14 @@ jobs:
     outputs:
       image_tag: ${{ steps.image.outputs.tag }}
     steps:
+      - name: Setup SSH agent
+        if: env.SSH_PRIVATE_KEY != ''
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3
 
@@ -145,7 +145,7 @@ jobs:
           cache-to: mode=max,image-manifest=true,oci-mediatypes=true,type=registry,ref=${{env.REGISTRY}}/${{ inputs.ecr_repository }}:${{ inputs.target || 'cache' }}
           cache-from: type=registry,ref=${{env.REGISTRY}}/${{ inputs.ecr_repository }}:${{ inputs.target || 'cache' }}
           provenance: false
-          ssh: ${{ inputs.ssh }}
+          ssh: default # Use the default ssh-agent setup previously
           tags: |
             ${{ steps.image.outputs.tag }}
             ${{ steps.image.outputs.tag_latest }}
