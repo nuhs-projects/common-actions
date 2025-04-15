@@ -3,8 +3,8 @@ on:
   workflow_call:
     inputs:
       directory:
-        description: Directory to run checks in.
-        default: . # github.workspace is sometimes just the empty string ''
+        description: Directory to run checks in. Defaults to the current working directory.
+        default: . # $ {{github.workspace}} is sometimes just the empty string '' which causes errors
         required: false
         type: string
       check-standard-rules:
@@ -16,14 +16,16 @@ on:
         required: false
         type: boolean
       check-uv-lockfile:
-        description: Whether to check the uv lockfile.
+        description: Whether to check that uv lockfile is in sync with pyproject.toml.
         default: true
         required: false
         type: boolean
     secrets:
       SSH_PRIVATE_KEY:
         required: false
-        description: SSH private key for private repositories.
+        description: |-
+          List of SSH private key(s) used to access private repositories.
+          See https://github.com/webfactory/ssh-agent/tree/v0.9.0/?tab=readme-ov-file#using-multiple-keys for more information.
 
 permissions:
   contents: read
@@ -34,8 +36,6 @@ jobs:
     defaults:
       run:
         working-directory: ${{ inputs.directory }}
-    env:
-      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
@@ -55,6 +55,8 @@ jobs:
 
       - name: Setup SSH agent
         if: env.SSH_PRIVATE_KEY != ''
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
