@@ -67,7 +67,15 @@ on:
         required: false
         description: |-
           List of SSH private key(s) used to access private repositories.
+
           See https://github.com/webfactory/ssh-agent/tree/v0.9.0/?tab=readme-ov-file#using-multiple-keys for more information.
+
+          Additionally, if you are using multiple keys, you will need to copy the git config (in `/tmp/root-config`) to your Dockerfile, e.g. via:
+
+          ```Dockerfile
+          COPY /tmp/root-config /root/
+          RUN sed 's|/home/runner|/root|g' -i.bak /root/.ssh/config
+          ```
     outputs:
       image_tag:
         description: Image reference of the built Docker image. When push=true, this image will be available in the caller's AWS ECR repository. Example format - 123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:latest
@@ -90,6 +98,11 @@ jobs:
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
+
+      - name: Collect Git and SSH config files in a directory that is part of the Docker build context
+        run: |
+          mkdir -p /tmp/root-config
+          cp -r ~/.gitconfig  ~/.ssh /tmp/root-config/
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3
