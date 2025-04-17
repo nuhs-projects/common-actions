@@ -70,21 +70,24 @@ on:
 
           See https://github.com/webfactory/ssh-agent/tree/v0.9.0/?tab=readme-ov-file#using-multiple-keys for more information on the format.
 
-          If you are using multiple deploy keys (e.g. if you are referencing >1 private repository), you will need to copy the `.gitconfig` and `.ssh/config` from the runner into the container, as these contain the mappings between the deploy keys and the repositories.
+          If you are using multiple deploy keys (e.g. if you are referencing >1 private repository), it is necessary to copy the `.gitconfig` and `.ssh/*` files from the runner into the container, as these setup the mappings between each deploy key and its repository.
 
-          This action will pass them to the builder as file secrets (https://docs.docker.com/reference/cli/docker/buildx/build/#typefile) with the ids `gitconfig` and `sshconfig`.
+          This action will `tar` these files and pass them to the builder as a Docker file secret (https://docs.docker.com/reference/cli/docker/buildx/build/#typefile) with the id `ssh_config`.
 
-          You can then use them in your Dockerfile.
-
-          E.g. for a single step:
+          You can then extract them in your Dockerfile as follows:
 
           ```Dockerfile
-          RUN --mount=type=secret,id=gitconfig,target=/home/user/.gitconfig \
-              --mount=type=secret,id=sshconfig,target=/home/user/.ssh/config \
+          # Add Github's SSH key to known hosts
+          RUN mkdir -p ~/.ssh && chmod 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+          # Extract the configuration
+          RUN --mount=type=secret,id=ssh_config,uid=1000 \
+              tar -xvf /run/secrets/ssh_config -C ~
+
+          # Example usage
+          RUN --mount=type=ssh,id=default,mode=0666 \
               uv sync --frozen
           ```
-
-          See https://docs.docker.com/build/building/secrets/#target for more information.
 
           Note: We use secrets to pass these files, even though they are not technically secret, as we can't modify the build context (we use a Git context).
 
@@ -110,6 +113,14 @@ jobs:
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
+
+      - name: Tar SSH config and gitconfig to /tmp/ssh_config.tar for Docker build
+        if: env.SSH_PRIVATE_KEY != ''
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          sed 's|/home/runner|~|g' -i ~/.ssh/config
+          tar -cvf /tmp/ssh_config.tar -C "$HOME" .ssh .gitconfig
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3
@@ -168,8 +179,7 @@ jobs:
           provenance: false
           ssh: default # Use the default ssh-agent setup previously
           secret-files: |
-            ${{ env.SSH_PRIVATE_KEY && 'gitconfig=~/.gitconfig' }}
-            ${{ env.SSH_PRIVATE_KEY && 'sshconfig=~/.ssh/config' }}
+            ${{ env.SSH_PRIVATE_KEY && 'ssh_config=/tmp/ssh_config.tar' }}
           tags: |
             ${{ steps.image.outputs.tag }}
             ${{ steps.image.outputs.tag_latest }}
