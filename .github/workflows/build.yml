@@ -68,14 +68,26 @@ on:
         description: |-
           List of SSH private key(s) used to access private repositories.
 
-          See https://github.com/webfactory/ssh-agent/tree/v0.9.0/?tab=readme-ov-file#using-multiple-keys for more information.
+          See https://github.com/webfactory/ssh-agent/tree/v0.9.0/?tab=readme-ov-file#using-multiple-keys for more information on the format.
 
-          Additionally, if you are using multiple keys, you will need to copy the git config (in `/tmp/root-config`) to your Dockerfile, e.g. via:
+          If you are using multiple deploy keys (e.g. if you are referencing >1 private repository), you will need to copy the `.gitconfig` and `.ssh/config` from the runner into the container, as these contain the mappings between the deploy keys and the repositories.
+
+          This action will pass them to the builder as file secrets (https://docs.docker.com/reference/cli/docker/buildx/build/#typefile) with the ids `gitconfig` and `sshconfig`.
+
+          You can then use them in your Dockerfile.
+
+          E.g. for a single step:
 
           ```Dockerfile
-          COPY /tmp/root-config /root/
-          RUN sed 's|/home/runner|/root|g' -i.bak /root/.ssh/config
+          RUN --mount=type=secret,id=gitconfig,target=/home/user/.gitconfig \
+              --mount=type=secret,id=sshconfig,target=/home/user/.ssh/config \
+              uv sync --frozen
           ```
+
+          See https://docs.docker.com/build/building/secrets/#target for more information.
+
+          Note: We use secrets to pass these files, even though they are not technically secret, as we can't modify the build context (we use a Git context).
+
     outputs:
       image_tag:
         description: Image reference of the built Docker image. When push=true, this image will be available in the caller's AWS ECR repository. Example format - 123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:latest
@@ -98,11 +110,6 @@ jobs:
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
-
-      - name: Collect Git and SSH config files in a directory that is part of the Docker build context
-        run: |
-          mkdir -p /tmp/root-config
-          cp -r ~/.gitconfig  ~/.ssh /tmp/root-config/
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3
@@ -148,6 +155,7 @@ jobs:
         id: build
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v6
         with:
           push: ${{ inputs.push }}
@@ -159,6 +167,9 @@ jobs:
           cache-from: type=registry,ref=${{env.REGISTRY}}/${{ inputs.ecr_repository }}:${{ inputs.target || 'cache' }}
           provenance: false
           ssh: default # Use the default ssh-agent setup previously
+          secret-files: |
+            ${{ env.SSH_PRIVATE_KEY && 'gitconfig=~/.gitconfig' }}
+            ${{ env.SSH_PRIVATE_KEY && 'sshconfig=~/.ssh/config' }}
           tags: |
             ${{ steps.image.outputs.tag }}
             ${{ steps.image.outputs.tag_latest }}
