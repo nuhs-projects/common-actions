@@ -57,7 +57,7 @@ jobs:
         if: env.SSH_PRIVATE_KEY != ''
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        uses: webfactory/ssh-agent@v0.9.0
+        uses: webfactory/ssh-agent@a6f90b1f127823b31d4d4a8d96047790581349bd # v0.9.1
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
@@ -78,7 +78,7 @@ jobs:
 
       - name: Fetch ruff.toml from common-actions repo
         if: inputs.check-standard-rules
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           repository: nuhs-projects/common-actions
           path: repo-name-${{ github.run_id }}-${{ github.run_number }}

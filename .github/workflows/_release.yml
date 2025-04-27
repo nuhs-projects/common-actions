@@ -28,7 +28,7 @@ jobs:
           sed -Ei 's/@v\S+/@${{ github.ref_name }}/g' readme.md
 
       - name: Commit changes
-        uses: stefanzweifel/git-auto-commit-action@8621497c8c39c72f3e2a999a26b4ca1b5058a842 # v5
+        uses: stefanzweifel/git-auto-commit-action@b863ae1933cb653a53c021fe36dbb774e1fb9403 # v5
         with:
           commit_message: "Update workflows in readme.md to version ${{ github.ref_name }}"
 
