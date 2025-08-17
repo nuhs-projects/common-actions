@@ -19,7 +19,7 @@ jobs:
       sha_short: ${{ steps.commit.outputs.sha_short }}
       timestamp: ${{ steps.commit.outputs.timestamp }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
       - id: commit
         run: |
           echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
